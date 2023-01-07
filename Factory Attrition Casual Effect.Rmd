@@ -1,0 +1,176 @@
+---
+title: "Econ_Attrition"
+author: "tingchelyu"
+date: "2022-10-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Import Dataset
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+```
+
+
+```{r}
+factory_data <- read.csv("/Users/maggielundberg/Desktop/Empirical Econ/wfs_behaviors_and_records_508p-546d-98r_20220722173739.csv")
+head(factory_data)
+```
+
+# Clean Data
+
+```{r}
+#filtering to look at columns only on employee efficacy
+cleaned_data <- factory_data[factory_data$record_comptype == "Efficacy",]
+cleaned_data <- cleaned_data[cleaned_data$sub_role == "Laborer",]
+
+#dropping columns not necessary for our analysis
+drop <- c("sub_fname", "sub_lname", "sub_role", "behav_cause_h", "record_cause", "recorded_note_from_sup", "record_conf_matrix_h", "sup_fname", "sup_lname", "sup_age","behav_comptype_h", "record_comptype", "sub_coll_IDs", "sup_role", "event_week_in_series", "event_day_in_series", "event_weekday_num", "sup_ID")
+cleaned_data <- cleaned_data[,!(names(cleaned_data) %in% drop)]
+```
+
+```{r}
+min(cleaned_data$event_date)
+max(cleaned_data$event_date)
+```
+
+```{r}
+holiday_date <- c("2021-01-01", "2021-01-18", "2021-05-31", "2021-06-19", "2021-07-04", "2021-09-06", "2021-11-11","2021-11-25", 
+                  "2021-12-24", "2021-12-25", "2021-12-31", "2022-01-01", "2022-02-17", "2022-05-30", "2021-06-19")
+cleaned_data$holiday <- ifelse(cleaned_data$event_date %in% holiday_date, 1, 0)
+```
+
+```{r}
+#convert columns of character to factor
+cleaned_data$sub_sex <- as.factor(cleaned_data$sub_sex)
+cleaned_data$sub_shift <- as.factor(cleaned_data$sub_shift)
+cleaned_data$sub_team <- as.factor(cleaned_data$sub_team)
+cleaned_data$sub_workstyle_h <- as.factor(cleaned_data$sub_workstyle_h)
+cleaned_data$sup_sex <- as.factor(cleaned_data$sup_sex)
+cleaned_data$event_weekday_name <- as.factor(cleaned_data$event_weekday_name)
+cleaned_data$holiday <- as.factor(cleaned_data$holiday)
+#convert columns of character to numeric
+cleaned_data$sub_colls_same_sex_prtn <- as.numeric(cleaned_data$sub_colls_same_sex_prtn)
+cleaned_data$recorded_efficacy <- as.numeric(cleaned_data$recorded_efficacy)
+cleaned_data$actual_efficacy_h <- as.numeric(cleaned_data$actual_efficacy_h)
+cleaned_data$sup_sub_age_diff <- as.numeric(cleaned_data$sup_sub_age_diff)
+cleaned_data$sup_commitment_h <- as.numeric(cleaned_data$sup_commitment_h)
+cleaned_data$sup_goodness_h <- as.numeric(cleaned_data$sup_goodness_h)
+cleaned_data$sup_perceptiveness_h <- as.numeric(cleaned_data$sup_perceptiveness_h)
+
+#convert collumns of character to date
+cleaned_data$event_date <- as.Date(cleaned_data$event_date)
+
+# create column categorizing shift based on day and night
+# shift <- ifelse (cleaned_data$sub_shift == "Shift 3", "Night Shift", "Day Shift")
+# cleaned_data <- cbind(cleaned_data, shift)
+```
+
+```{r}
+summary(cleaned_data)
+```
+
+```{r}
+Mx <- cleaned_data[,-which(names(cleaned_data) %in% c("recorded_efficacy", "actual_efficacy_h"))]
+Mx <- model.matrix(cleaned_data$recorded_efficacy ~ ., data = Mx)[,-1]
+```
+
+```{r}
+summary(Mx)
+```
+
+
+```{r}
+library(corrplot)
+corrplot(cor(Mx), method = 'color')
+# age and age_diff is highly corr
+# sub_shift are highly correlated
+```
+
+# EDA
+
+```{r}
+#EDA
+cleaned_data %>%
+  ggplot(aes(x = actual_efficacy_h, y = sub_sex)) + geom_boxplot() + labs(x = "Actual Efficacy", y = "Gender", title = "Employee Efficacy Divided by Gender")
+```
+```{r}
+cleaned_data %>%
+  ggplot(aes(x = actual_efficacy_h, color = sub_sex, y = sub_shift)) + geom_boxplot() + labs(x = "Actual Efficacy", y = "Shift", color = "Gender", title = "Actual Efficacy by Shift and Gender")
+```
+```{r}
+cleaned_data %>%
+  ggplot(aes(x = actual_efficacy_h, y = holiday)) + geom_boxplot() + labs(x = "Actual Efficacy", y = "Holiday", title = "Employee Efficacy Based on if Day is Holiday or Not")
+```
+
+```{r}
+cleaned_data %>%
+  ggplot(aes(x = actual_efficacy_h, fill = holiday)) + facet_wrap(~ holiday) + geom_histogram(bins = 25, alpha = 0.85) + labs(x ="Actual Efficacy", y = "Count", fill = "Holiday", title = "Distribution of Actual Efficacy of Holiday vs Non-Holiday")
+```
+```{r}
+cleaned_data %>%
+  ggplot(aes( x = holiday)) + geom_bar() + labs(x ="Holiday", y = "Count", title = "Count of Holiday vs Non-Holiday Days Recorded")
+```
+
+```{r}
+cleaned_data %>%
+  ggplot(aes(x = event_weekday_name, fill = holiday)) + geom_bar() + labs(x = "Day of Week", y = "Count", title = "Amount of Records per Day of Week")
+```
+
+```{r}
+cleaned_data %>%
+  ggplot(aes(x = actual_efficacy_h, fill = event_weekday_name)) + geom_histogram(bins = 25, alpha = 0.85) + labs(x ="Actual Efficacy", y = "Count", fill = "Day of Week", title = "Distribution of Actual Efficacy based on Weekday")
+```
+
+```{r}
+cleaned_data %>%
+  ggplot(aes(x = actual_efficacy_h, y = event_weekday_name)) + geom_boxplot() + labs(x = "Actual Efficacy", y = "Day of Week", title ="Actual Efficacy Based on Day of Week")
+```
+```{r}
+cleaned_data %>%
+  ggplot(aes(x = sub_age, fill = sub_shift)) + geom_bar() + facet_wrap(~ sub_shift, nrow = 2) + labs(x = "Worker Age", y = "Count", fill = "Shift", title = "Worker Age Based on Shift")
+```
+```{r}
+cleaned_data %>%
+  ggplot(aes(x =recorded_efficacy, y = actual_efficacy_h)) + geom_point(alpha = 0.35) + geom_smooth() + labs(x ="Recorded Efficacy", y = "Actual Efficacy", title = "Workers' Perceived Efficacy vs Actual Efficacy")
+```
+```{r}
+cleaned_data %>%
+  ggplot(aes(x =recorded_efficacy, y = actual_efficacy_h)) + facet_wrap(~holiday) + geom_point(alpha = 0.35) + geom_smooth() + labs(x ="Recorded Efficacy", y = "Actual Efficacy", title = "Workers' Perceived Efficacy vs Actual Efficacy")
+```
+
+
+```{r}
+OLS.model <- lm(actual_efficacy_h~sub_age +  sub_shift + holiday + sub_health_h + sub_commitment_h + sub_perceptiveness_h + sub_dexterity_h + sub_sociality_h + sub_goodness_h + sub_strength_h + sub_openmindedness_h +sub_sex +event_weekday_name + sub_workstyle_h + sup_sub_age_diff + sup_sex +  sup_commitment_h + sub_goodness_h + sub_colls_same_sex_prtn, data = cleaned_data)
+summary(OLS.model)
+```        
+```{r}
+diff <- cleaned_data$actual_efficacy_h - cleaned_data$recorded_efficacy
+cleaned_data <- cbind(cleaned_data, diff)
+
+model2 <- lm(actual_efficacy_h~ diff + holiday + diff*holiday, data = cleaned_data)
+summary(model2)
+```
+          
+          
+```{r}
+library(plm)
+panelmodel<-plm(actual_efficacy_h~sub_shift + holiday + sub_age + sub_health_h + sub_commitment_h + sub_perceptiveness_h + sub_dexterity_h + sub_sociality_h + sub_goodness_h + sub_strength_h + sub_sex  + event_weekday_name + sub_workstyle_h + sup_sub_age_diff + sup_sex + sup_commitment_h + sub_goodness_h +   sub_colls_same_sex_prtn,data=cleaned_data,index=c("sub_ID","event_date"),model="within")
+summary(panelmodel)
+```
+
+```
+```{r}
+install.packages("car")
+library(car)
+sum(factory_data$record_comptype=="Idea")
+sum(factory_data$event_date=="07/04/21")
+sum(factory_data$event_weekday_name=="Friday")
+```
+
+
